@@ -15,7 +15,8 @@ public final class FareEngine {
     public FareEngine(Tariff tariff,long startElapsed,long startWall,boolean outside){
         this.tariff=tariff;this.lastElapsed=startElapsed;
         basicRemaining=divide(tariff.baseMeters,tariff.distanceUnitMeters);
-        totalWon=round(BigDecimal.valueOf(tariff.baseWon).multiply(BigDecimal.valueOf(tariff.multiplier(startWall,outside))));
+        totalWon=BigDecimal.valueOf(tariff.baseWon).multiply(BigDecimal.valueOf(tariff.multiplier(startWall,outside)))
+            .divide(BigDecimal.valueOf(tariff.baseRoundingWon),0,RoundingMode.HALF_UP).longValueExact()*tariff.baseRoundingWon;
     }
     private static BigDecimal divide(double n,double d){return BigDecimal.valueOf(n).divide(BigDecimal.valueOf(d),12,RoundingMode.HALF_UP);}
     private long round(BigDecimal amount){return amount.divide(BigDecimal.valueOf(tariff.roundingWon),0,RoundingMode.HALF_UP).longValueExact()*tariff.roundingWon;}
