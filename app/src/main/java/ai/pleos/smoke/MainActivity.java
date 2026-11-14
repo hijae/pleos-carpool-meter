@@ -19,7 +19,8 @@ public final class MainActivity extends UiActivity implements PleosLocationSourc
     private MeterApplication session;
     private PleosLocationSource motion;
     private NaviAreaSource navigation;
-    private TextView amount,counter,increment,metrics,rates,signal,character;
+    private TextView amount,counter,increment,metrics,rates,signal,speedLabel;
+    private CharacterView character;
     private ProgressBar progress;
     private Button begin,pause,end,outside;
     private final Handler handler=new Handler(Looper.getMainLooper());
@@ -31,7 +32,7 @@ public final class MainActivity extends UiActivity implements PleosLocationSourc
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);build();
     }
     private void build(){
-        applyPalette();LinearLayout root=column();
+        applyPalette();LinearLayout root=new LedLayout(this,ink);root.setOrientation(1);root.setPadding(dp(24),dp(18),dp(24),dp(18));root.setBackgroundColor(paper);
         LinearLayout header=new LinearLayout(this);header.setGravity(Gravity.CENTER_VERTICAL);
         TextView title=text("CARPOOL METER",19);header.addView(title,new LinearLayout.LayoutParams(0,-2,1));
         header.addView(button("주행 내역",this::history));header.addView(button("설정",()->startActivity(new Intent(this,SettingsActivity.class))));root.addView(header);
@@ -41,7 +42,8 @@ public final class MainActivity extends UiActivity implements PleosLocationSourc
         amount=text("0 원",56);amount.setTypeface(android.graphics.Typeface.MONOSPACE);money.addView(amount);
         increment=text("",14);money.addView(increment);counter=text("0",25);counter.setTypeface(android.graphics.Typeface.MONOSPACE);money.addView(counter);
         progress=new ProgressBar(this,null,android.R.attr.progressBarStyleHorizontal);progress.setMax(10000);progress.setProgressTintList(android.content.res.ColorStateList.valueOf(ink));money.addView(progress,new LinearLayout.LayoutParams(-1,dp(6)));
-        display.addView(money,new LinearLayout.LayoutParams(0,-2,1.6f));character=text("",36);character.setGravity(Gravity.CENTER);display.addView(character,new LinearLayout.LayoutParams(0,dp(130),1));root.addView(display);
+        display.addView(money,new LinearLayout.LayoutParams(0,-2,1.6f));LinearLayout runner=new LinearLayout(this);runner.setOrientation(1);runner.setGravity(Gravity.CENTER);
+        character=new CharacterView(this);runner.addView(character,new LinearLayout.LayoutParams(-1,dp(110)));speedLabel=text("",23);speedLabel.setGravity(Gravity.CENTER);runner.addView(speedLabel);display.addView(runner,new LinearLayout.LayoutParams(0,-2,1));root.addView(display);
         metrics=text("",18);root.addView(metrics);
         LinearLayout controls=new LinearLayout(this);outside=button("시외할증 켜기",()->{
             session.outside.toggleManual();session.saveOutside();session.recordRates("메인 시외 버튼");refresh();
@@ -82,7 +84,7 @@ public final class MainActivity extends UiActivity implements PleosLocationSourc
         amount.setText(String.format(Locale.KOREA,"%,d 원",e==null?0:e.totalWon()));counter.setText(""+(e==null?0:e.accumulatedWon()));
         increment.setText("다음 +"+(e==null?tariff.stepWon:e.nextIncrementWon(now,session.outside.applied()))+"원까지");progress.setProgress(e==null?0:(int)(e.progress()*10000));
         boolean fresh=SystemClock.elapsedRealtime()-session.lastMotion<10000;
-        character.setText((fresh?String.format(Locale.KOREA,"%.0f",session.speed):"—")+" km/h");
+        speedLabel.setText((fresh?String.format(Locale.KOREA,"%.0f",session.speed):"—")+" km/h");character.update(preferences.character(),ink,fresh&&active&&!e.isPaused()?session.speed:0);
         long sec=session.duration()/1000;metrics.setText(String.format(Locale.KOREA,"%.2f km    %02d:%02d    %s",e==null?0:e.distanceMeters()/1000,sec/60,sec%60,active?(e.isPaused()?"일시정지":"주행 중"):"운행 대기"));
         rates.setText(tariff.name+" · 심야 "+tariff.nightPercent(now)+"% · 시외 "+(session.outside.applied()?tariff.outsidePercent+"%":"꺼짐")+" · "+(session.outside.automatic()?"자동":"수동"));
         outside.setText(session.outside.applied()?"시외할증 끄기":"시외할증 켜기");begin.setVisibility(active?android.view.View.GONE:android.view.View.VISIBLE);pause.setVisibility(active?android.view.View.VISIBLE:android.view.View.GONE);end.setEnabled(active);pause.setText(active&&e.isPaused()?"다시 시작":"일시정지");
