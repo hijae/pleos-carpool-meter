@@ -31,7 +31,17 @@ public final class FareEngine {
         distanceMeters+=distance;
         BigDecimal units=divide(distance,tariff.distanceUnitMeters);
         if(speedKmh<tariff.lowSpeedKmh)units=units.add(divide(dt,tariff.timeUnitMillis));
-        consume(units,tariff.multiplier(endWall,outside));
+        // Split at wall-clock minute boundaries, so a callback straddling a night band
+        // charges only the part after the boundary at the new rate.
+        long cursor=endWall-dt;
+        BigDecimal remainingUnits=units;
+        while(cursor<endWall){
+            long boundary=Math.floorDiv(cursor,60_000)*60_000+60_000;
+            long end=Math.min(boundary,endWall);
+            BigDecimal part=end==endWall?remainingUnits:units.multiply(divide(end-cursor,dt));
+            consume(part,tariff.multiplier(cursor,outside));
+            remainingUnits=remainingUnits.subtract(part);cursor=end;
+        }
     }
     private void consume(BigDecimal units,double multiplier){
         if(basicRemaining.signum()>0){BigDecimal used=units.min(basicRemaining);basicRemaining=basicRemaining.subtract(used);units=units.subtract(used);}
