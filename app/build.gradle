@@ -1,0 +1,10 @@
+plugins { id 'com.android.application' }
+android {
+ namespace 'ai.pleos.smoke'
+ compileSdk 34
+ defaultConfig { applicationId 'ai.pleos.smoke'; minSdk 28; targetSdk 34; versionCode 1; versionName '1.0' }
+}
+
+dependencies {
+ implementation 'ai.pleos.playground:Vehicle:2.3.2'
+}
