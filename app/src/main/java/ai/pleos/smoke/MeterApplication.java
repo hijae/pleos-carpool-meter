@@ -4,6 +4,7 @@ import android.os.SystemClock;
 import ai.pleos.smoke.core.FareEngine;
 import ai.pleos.smoke.core.OutsideController;
 import ai.pleos.smoke.data.Preferences;
+import ai.pleos.smoke.data.TariffCodec;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.UUID;
@@ -18,7 +19,7 @@ public final class MeterApplication extends Application {
     public JSONArray events=new JSONArray();
     private int lastNight=-1;
     private boolean lastOutside,lastAuto;
-    public void onCreate(){super.onCreate();Preferences p=new Preferences(this);outside=new OutsideController(p.automatic(),p.applied());}
+    public void onCreate(){super.onCreate();Preferences p=new Preferences(this);outside=new OutsideController(p.automatic(),p.applied());restore();}
     public boolean active(){return engine!=null&&!engine.isEnded();}
     public void begin(){
         Preferences p=new Preferences(this);outside.setAutomatic(p.automatic());
@@ -39,4 +40,18 @@ public final class MeterApplication extends Application {
     public long duration(){if(engine==null)return 0;long end=pausedAt>0?pausedAt:SystemClock.elapsedRealtime();return Math.max(0,end-startedElapsed-totalPaused);}
     public void syncSettings(){Preferences p=new Preferences(this);if(outside.automatic()!=p.automatic())outside.setAutomatic(p.automatic());if(!outside.automatic()&&outside.applied()!=p.applied())outside.toggleManual();recordRates("설정 변경");}
     public void saveOutside(){new Preferences(this).setOutside(outside.automatic(),outside.applied());}
+    public void checkpoint(){if(!active())return;try{
+        var s=engine.snapshot();JSONObject state=new JSONObject().put("id",tripId).put("start",startedWall).put("duration",duration()).put("tariff",TariffCodec.encode(engine.tariff))
+            .put("total",s.totalWon()).put("elapsed",s.elapsedMillis()).put("meters",s.distanceMeters()).put("basic",s.basicRemaining()).put("progress",s.progress()).put("pending",s.pendingWon())
+            .put("baseline",outside.baseline()).put("automatic",outside.automatic()).put("applied",outside.applied()).put("events",events);
+        getSharedPreferences("checkpoint",MODE_PRIVATE).edit().putString("active",state.toString()).apply();
+    }catch(Exception e){motionStatus="운행 임시 저장 실패 · 종료 시 다시 저장하세요";}}
+    public void clearCheckpoint(){getSharedPreferences("checkpoint",MODE_PRIVATE).edit().remove("active").apply();}
+    private void restore(){try{
+        String raw=getSharedPreferences("checkpoint",MODE_PRIVATE).getString("active",null);if(raw==null)return;JSONObject j=new JSONObject(raw);
+        long now=SystemClock.elapsedRealtime();engine=FareEngine.restore(TariffCodec.decode(j.getJSONObject("tariff")),new FareEngine.Snapshot(j.getLong("total"),j.getLong("elapsed"),j.getDouble("meters"),j.getString("basic"),j.getString("progress"),j.getString("pending")),now);
+        tripId=j.getString("id");startedWall=j.getLong("start");startedElapsed=now-j.getLong("duration");pausedAt=now;totalPaused=0;events=j.getJSONArray("events");
+        outside=new OutsideController(j.getBoolean("automatic"),j.getBoolean("applied"));outside.restoreTrip(j.optString("baseline",null));
+        motionStatus="이전 운행 복원 · 일시정지 상태";
+    }catch(Exception e){engine=null;motionStatus="이전 운행 복원 실패 · 저장된 기록은 유지됨";}}
 }

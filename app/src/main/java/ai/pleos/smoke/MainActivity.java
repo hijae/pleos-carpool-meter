@@ -46,7 +46,7 @@ public final class MainActivity extends UiActivity implements PleosLocationSourc
         character=new CharacterView(this);runner.addView(character,new LinearLayout.LayoutParams(-1,dp(110)));speedLabel=text("",23);speedLabel.setGravity(Gravity.CENTER);runner.addView(speedLabel);display.addView(runner,new LinearLayout.LayoutParams(0,-2,1));root.addView(display);
         metrics=text("",18);root.addView(metrics);
         LinearLayout controls=new LinearLayout(this);outside=button("시외할증 켜기",()->{
-            session.outside.toggleManual();session.saveOutside();session.recordRates("메인 시외 버튼");refresh();
+            session.outside.toggleManual();session.saveOutside();session.recordRates("메인 시외 버튼");session.checkpoint();refresh();
         });controls.addView(outside,new LinearLayout.LayoutParams(0,-2,1));
         begin=button("시작",this::startTrip);controls.addView(begin,new LinearLayout.LayoutParams(0,-2,1));
         pause=button("일시정지",()->{if(session.engine.isPaused()){session.resume();motion.stop();motion.start();}else session.pause();refresh();});controls.addView(pause,new LinearLayout.LayoutParams(0,-2,1));
@@ -56,7 +56,7 @@ public final class MainActivity extends UiActivity implements PleosLocationSourc
         scroll(root);refresh();
     }
     protected void onStart(){super.onStart();visible=true;session.syncSettings();build();motion.start();navigation.start();handler.post(clock);}
-    protected void onStop(){visible=false;handler.removeCallbacks(clock);motion.stop();navigation.stop();if(!isChangingConfigurations()&&session.active()&&!session.engine.isPaused()){session.pause();session.motionStatus="화면 이탈로 일시정지 · 복귀 후 다시 시작";}super.onStop();}
+    protected void onStop(){visible=false;handler.removeCallbacks(clock);motion.stop();navigation.stop();if(!isChangingConfigurations()&&session.active()&&!session.engine.isPaused()){session.pause();session.motionStatus="화면 이탈로 일시정지 · 복귀 후 다시 시작";}session.checkpoint();super.onStop();}
     private void permission(){requestPermissions(new String[]{PleosLocationSource.PERMISSION,NaviAreaSource.PERMISSION},7);}
     public void onRequestPermissionsResult(int code,String[] names,int[] values){super.onRequestPermissionsResult(code,names,values);if(!visible)return;motion.stop();navigation.stop();motion.start();navigation.start();}
     private void startTrip(){
@@ -65,13 +65,15 @@ public final class MainActivity extends UiActivity implements PleosLocationSourc
         if(preferences.automatic()&&(session.area==null||SystemClock.elapsedRealtime()-session.areaReceived>15000)){
             new AlertDialog.Builder(this).setMessage("자동 시외할증에 필요한 출발 행정구역을 기다리고 있습니다. 위치 권한/내비 연결을 확인하거나 설정에서 수동 모드를 선택하세요.").setPositiveButton("설정",(d,w)->startActivity(new Intent(this,SettingsActivity.class))).setNegativeButton("확인",null).show();return;
         }
-        session.begin();motion.stop();motion.start();refresh();
+        session.begin();session.checkpoint();motion.stop();motion.start();refresh();
     }
-    private void finishTrip(){if(!session.active())return;session.pause();session.engine.finish();session.outside.endTrip();session.saveOutside();refresh();history();}
-    private void history(){new AlertDialog.Builder(this).setMessage("주행 내역 저장 화면을 연결하는 중입니다.").setPositiveButton("확인",null).show();}
+    private void finishTrip(){if(!session.active())return;session.pause();try(ai.pleos.smoke.data.TripStore store=new ai.pleos.smoke.data.TripStore(this)){
+        store.save(session);session.engine.finish();session.outside.endTrip();session.saveOutside();session.clearCheckpoint();refresh();history();
+    }catch(Exception e){session.checkpoint();new AlertDialog.Builder(this).setMessage("저장 실패 · 운행은 일시정지 상태로 유지됩니다. 다시 종료를 눌러주세요.").setPositiveButton("확인",null).show();}}
+    private void history(){startActivity(new Intent(this,HistoryActivity.class));}
     public void onMotion(MotionEstimator.Result result){
         session.speed=result.speedKmh();if(result.valid())session.lastMotion=SystemClock.elapsedRealtime();
-        if(session.active()&&!session.engine.isPaused())session.engine.advance(SystemClock.elapsedRealtime(),System.currentTimeMillis(),result.distanceMeters(),result.speedKmh(),result.valid(),session.outside.applied());refresh();
+        if(session.active()&&!session.engine.isPaused())session.engine.advance(SystemClock.elapsedRealtime(),System.currentTimeMillis(),result.distanceMeters(),result.speedKmh(),result.valid(),session.outside.applied());session.checkpoint();refresh();
     }
     public void onStatus(String message){session.motionStatus=message;if(visible)refresh();}
     public void onNaviStatus(String message){session.naviStatus=message;if(visible)refresh();}

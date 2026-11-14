@@ -19,4 +19,5 @@ public final class OutsideController {
     public boolean automatic(){return automatic;}
     public boolean applied(){return applied;}
     public String baseline(){return baseline;}
+    public void restoreTrip(String baseline){this.trip=true;this.baseline=baseline;candidate=null;}
 }

@@ -5,6 +5,7 @@
 <uses-feature android:name="android.hardware.type.automotive" android:required="true"/>
 <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
 <application android:name=".MeterApplication" android:label="Carpool Meter" android:theme="@style/AppTheme" android:allowBackup="false">
+<activity android:name=".HistoryActivity" android:exported="false"/>
 <activity android:name=".SettingsActivity" android:exported="false"/>
 <activity android:name=".LocationDiagnosticsActivity" android:exported="false"/>
 <activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter></activity>

@@ -67,4 +67,13 @@ public final class FareEngine {
     public boolean isPaused(){return paused;}
     public boolean isEnded(){return ended;}
     public double basicRemainingMeters(){return basicRemaining.doubleValue()*tariff.distanceUnitMeters;}
+    public record Snapshot(long totalWon,long elapsedMillis,double distanceMeters,String basicRemaining,String progress,String pendingWon){}
+    public Snapshot snapshot(){return new Snapshot(totalWon,elapsedMillis,distanceMeters,basicRemaining.toPlainString(),progress.toPlainString(),pendingWon.toPlainString());}
+    public static FareEngine restore(Tariff tariff,Snapshot s,long nowElapsed){
+        FareEngine e=new FareEngine(tariff,nowElapsed,0,false);e.totalWon=s.totalWon();e.elapsedMillis=s.elapsedMillis();e.distanceMeters=s.distanceMeters();
+        e.basicRemaining=new BigDecimal(s.basicRemaining());e.progress=new BigDecimal(s.progress());e.pendingWon=new BigDecimal(s.pendingWon());
+        if(e.totalWon<0||e.elapsedMillis<0||!Double.isFinite(e.distanceMeters)||e.distanceMeters<0||e.basicRemaining.signum()<0
+            ||e.progress.signum()<0||e.progress.compareTo(ONE)>=0||e.pendingWon.signum()<0)throw new IllegalArgumentException("운행 복원 데이터 오류");
+        e.paused=true;return e;
+    }
 }
