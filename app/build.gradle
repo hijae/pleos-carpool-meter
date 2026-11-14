@@ -7,7 +7,7 @@ android {
  testOptions {
   unitTests.includeAndroidResources = true
   unitTests.all {
-   ['https.proxyHost','https.proxyPort','http.proxyHost','http.proxyPort','javax.net.ssl.trustStore'].each { key ->
+   ['user.home','https.proxyHost','https.proxyPort','http.proxyHost','http.proxyPort','javax.net.ssl.trustStore'].each { key ->
     if (System.getProperty(key)) systemProperty key, System.getProperty(key)
    }
   }

@@ -1,3 +1,5 @@
+> 초기 SDK 연동 확인 시점의 기록입니다. 현재 미터 앱의 구현 상태는 README.md와 verification.md를 참고하세요.
+
 # Pleos Vehicle SDK build check
 
 Minimal Android Automotive app linked against the official Pleos Vehicle SDK. This is a compile/package verification, not a verified vehicle runtime integration.
