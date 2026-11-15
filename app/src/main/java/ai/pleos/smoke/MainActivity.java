@@ -27,7 +27,7 @@ public final class MainActivity extends UiActivity
   private LinearLayout confirmRow;
   private boolean confirmingEnd;
   private String noticeText;
-  private TextView amount, counter, increment, metrics, rates, speedLabel;
+  private TextView amount, counter, increment, metrics, rates, signal, speedLabel;
   private CharacterView character;
   private ProgressBar progress;
   private Button begin, pause, end, outside;
@@ -144,6 +144,10 @@ public final class MainActivity extends UiActivity
               refresh();
             });
     controls.addView(end, new LinearLayout.LayoutParams(0, -2, 1));
+    // Motion source status, directly above the bottom buttons.
+    signal = text("", 13);
+    signal.setTextColor(muted);
+    root.addView(signal);
     notice = text("", 18);
     root.addView(notice);
     confirmRow = new LinearLayout(this);
@@ -299,6 +303,7 @@ public final class MainActivity extends UiActivity
     pause.setVisibility(active ? android.view.View.VISIBLE : android.view.View.GONE);
     end.setEnabled(active);
     pause.setText(active && e.isPaused() ? "다시 시작" : "일시정지");
+    signal.setText(session.motionStatus);
     if (confirmingEnd) {
       notice.setText("운행을 종료할까요?");
       notice.setVisibility(android.view.View.VISIBLE);
