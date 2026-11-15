@@ -35,7 +35,7 @@ JDK 17, Android SDK Platform 34, Build Tools 35.0.0이 필요합니다. Pleos �
 ```sh
 scripts/check.sh
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -W -n ai.pleos.smoke/.MainActivity
+adb shell am start -W -n dev.hijae.carpoolmeter/.MainActivity
 ```
 
 Gradle 8.13 / Android Gradle Plugin 8.9.2 / minSdk 28 / targetSdk 34. 공식 Pleos Maven 저장소 접근이 필요하며 별도 로그인은 필요하지 않았습니다. Robolectric 첫 실행은 테스트용 Android 런타임을 다운로드합니다.

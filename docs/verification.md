@@ -6,7 +6,7 @@
 - 자동 테스트: 52개, 실패 0개
 - lint: 0 errors, 11 warnings
 - APK Signature Scheme v2 검증 통과
-- APK SHA-256: `e219963c618140c45045811d173e0a558edda6af7cbb30fd15a3e656ae1d4009`
+- APK SHA-256: `d29fa57f809e7352455276c36916d33434f9e219ac9dc7013f8f60eed1b6ef20`
 
 ## 테스트 범위
 
