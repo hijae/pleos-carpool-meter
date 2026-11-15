@@ -12,7 +12,7 @@
 
 ```sh
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -W -n ai.pleos.smoke/.MainActivity
+adb shell am start -W -n dev.hijae.carpoolmeter/.MainActivity
 ```
 
 ## 확인 항목

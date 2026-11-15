@@ -33,7 +33,7 @@ Install and start the Pleos emulator following https://document.pleos.ai/docs/co
 
 ```sh
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -W -n ai.pleos.smoke/.MainActivity
+adb shell am start -W -n dev.hijae.carpoolmeter/.MainActivity
 ```
 
 Tap **Read odometer** to request actual SDK data. Check the displayed error if permissions, service version, service connection, or feature support prevent access. There are no fake odometer readings.
