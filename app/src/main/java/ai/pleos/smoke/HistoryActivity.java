@@ -85,8 +85,6 @@ public final class HistoryActivity extends UiActivity {
                     + e.getInt("nightPercent")
                     + "% · 시외 "
                     + (e.getBoolean("outside") ? "적용" : "꺼짐")
-                    + " · "
-                    + e.getString("mode")
                     + "\n"
                     + e.optString("reason"),
                 15));

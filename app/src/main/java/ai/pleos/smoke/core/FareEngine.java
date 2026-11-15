@@ -56,7 +56,8 @@ public final class FareEngine {
       return;
     }
     elapsedMillis += dt;
-    // Do not bill through location outages or giant gaps; still count elapsed trip duration.
+    // Do not bill through missing data, giant gaps or NaN/negative values; still count elapsed
+    // trip duration.
     if (!usable
         || dt > 10_000
         || !Double.isFinite(distance)
