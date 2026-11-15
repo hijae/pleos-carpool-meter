@@ -40,31 +40,16 @@ public class AppIntegrationTest {
     return null;
   }
 
-  private Switch automatic(View root) {
-    if (root instanceof Switch s && s.getText().toString().contains("행정구역")) return s;
-    if (root instanceof ViewGroup g)
-      for (int i = 0; i < g.getChildCount(); i++) {
-        Switch s = automatic(g.getChildAt(i));
-        if (s != null) return s;
-      }
-    return null;
-  }
-
   @Test
-  public void mainTogglePersistsManualAndSettingsReflectIt() {
+  public void mainTogglePersistsAppliedState() {
     try (var controller = Robolectric.buildActivity(MainActivity.class).setup()) {
       MainActivity main = controller.get();
       Button toggle = find(main.getWindow().getDecorView(), "시외할증 켜기");
       assertNotNull(toggle);
       toggle.performClick();
       Preferences prefs = new Preferences(main);
-      assertFalse(prefs.automatic());
       assertTrue(prefs.applied());
-      try (var settings = Robolectric.buildActivity(SettingsActivity.class).setup()) {
-        Switch s = automatic(settings.get().getWindow().getDecorView());
-        assertNotNull(s);
-        assertFalse(s.isChecked());
-      }
+      assertNotNull(find(main.getWindow().getDecorView(), "시외할증 끄기"));
     }
   }
 
@@ -99,7 +84,8 @@ public class AppIntegrationTest {
       assertNotNull(find(main.get().getWindow().getDecorView(), "설정"));
     }
     try (var settings = Robolectric.buildActivity(SettingsActivity.class).setup()) {
-      assertNotNull(find(settings.get().getWindow().getDecorView(), "저장"));
+      assertNotNull(find(settings.get().getWindow().getDecorView(), "미터로 돌아가기"));
+      assertNull(find(settings.get().getWindow().getDecorView(), "저장"));
     }
   }
 
@@ -113,10 +99,10 @@ public class AppIntegrationTest {
   }
 
   @Test
-  public void checkpointRestoresTripAsPausedWithSameFareAndMode() {
+  public void checkpointRestoresTripAsPausedWithSameFareAndSurcharge() {
     MeterApplication app = (MeterApplication) RuntimeEnvironment.getApplication();
     app.begin();
-    app.outside.toggleManual();
+    app.outside.toggle();
     app.saveOutside();
     app.checkpoint();
     String id = app.tripId;
@@ -127,7 +113,6 @@ public class AppIntegrationTest {
     assertTrue(app.engine.isPaused());
     assertEquals(id, app.tripId);
     assertEquals(fare, app.engine.totalWon());
-    assertFalse(app.outside.automatic());
     assertTrue(app.outside.applied());
     app.engine.finish();
     app.clearCheckpoint();
@@ -153,7 +138,9 @@ public class AppIntegrationTest {
   @org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)
   public void renderNightAndDayMeterPreviews() throws Exception {
     for (String theme : new String[] {"night", "day"}) {
-      new Preferences(RuntimeEnvironment.getApplication()).setAppearance("horse", theme);
+      // The theme follows the vehicle/system day-night mode only.
+      RuntimeEnvironment.setQualifiers(theme.equals("night") ? "+night" : "+notnight");
+      new Preferences(RuntimeEnvironment.getApplication()).setCharacter("horse");
       try (var main = Robolectric.buildActivity(MainActivity.class).setup()) {
         View view = main.get().getWindow().getDecorView();
         view.measure(

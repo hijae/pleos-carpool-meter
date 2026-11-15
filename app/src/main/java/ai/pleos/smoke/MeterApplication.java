@@ -14,17 +14,17 @@ import org.json.JSONObject;
 public final class MeterApplication extends Application {
   public FareEngine engine;
   public OutsideController outside;
-  public String tripId, area, motionStatus = "위치 수신 대기", naviStatus = "행정구역 수신 대기";
-  public long startedWall, startedElapsed, pausedAt, totalPaused, areaReceived, lastMotion;
+  public String tripId, motionStatus = "차량 속도 대기";
+  public long startedWall, startedElapsed, pausedAt, totalPaused, lastMotion;
   public double speed;
   public JSONArray events = new JSONArray();
   private int lastNight = -1;
-  private boolean lastOutside, lastAuto;
+  private boolean lastOutside;
 
   public void onCreate() {
     super.onCreate();
     Preferences p = new Preferences(this);
-    outside = new OutsideController(p.automatic(), p.applied());
+    outside = new OutsideController(p.applied());
     restore();
   }
 
@@ -34,10 +34,8 @@ public final class MeterApplication extends Application {
 
   public void begin() {
     Preferences p = new Preferences(this);
-    outside.setAutomatic(p.automatic());
-    if (!p.automatic() && outside.applied() != p.applied()) outside.toggleManual();
-    String startArea = SystemClock.elapsedRealtime() - areaReceived <= 15000 ? area : null;
-    outside.beginTrip(startArea);
+    outside.set(false);
+    saveOutside();
     tripId = UUID.randomUUID().toString();
     startedWall = System.currentTimeMillis();
     startedElapsed = SystemClock.elapsedRealtime();
@@ -52,8 +50,7 @@ public final class MeterApplication extends Application {
   public void recordRates(String reason) {
     if (!active()) return;
     int night = engine.tariff.nightPercent(System.currentTimeMillis());
-    if (night == lastNight && lastOutside == outside.applied() && lastAuto == outside.automatic())
-      return;
+    if (night == lastNight && lastOutside == outside.applied()) return;
     if (lastOutside != outside.applied())
       engine.outsideChanged(outside.applied(), SystemClock.elapsedRealtime());
     try {
@@ -62,13 +59,11 @@ public final class MeterApplication extends Application {
               .put("at", System.currentTimeMillis())
               .put("nightPercent", night)
               .put("outside", outside.applied())
-              .put("mode", outside.automatic() ? "자동" : "수동")
               .put("reason", reason));
     } catch (Exception ignored) {
     }
     lastNight = night;
     lastOutside = outside.applied();
-    lastAuto = outside.automatic();
   }
 
   public void pause() {
@@ -95,13 +90,12 @@ public final class MeterApplication extends Application {
 
   public void syncSettings() {
     Preferences p = new Preferences(this);
-    if (outside.automatic() != p.automatic()) outside.setAutomatic(p.automatic());
-    if (!outside.automatic() && outside.applied() != p.applied()) outside.toggleManual();
+    if (outside.applied() != p.applied()) outside.set(p.applied());
     recordRates("설정 변경");
   }
 
   public void saveOutside() {
-    new Preferences(this).setOutside(outside.automatic(), outside.applied());
+    new Preferences(this).setOutsideApplied(outside.applied());
   }
 
   public void checkpoint() {
@@ -120,8 +114,6 @@ public final class MeterApplication extends Application {
               .put("basic", s.basicRemaining())
               .put("progress", s.progress())
               .put("pending", s.pendingWon())
-              .put("baseline", outside.baseline())
-              .put("automatic", outside.automatic())
               .put("applied", outside.applied())
               .put("events", events);
       getSharedPreferences("checkpoint", MODE_PRIVATE)
@@ -160,8 +152,7 @@ public final class MeterApplication extends Application {
       pausedAt = now;
       totalPaused = 0;
       events = j.getJSONArray("events");
-      outside = new OutsideController(j.getBoolean("automatic"), j.getBoolean("applied"));
-      outside.restoreTrip(j.optString("baseline", null));
+      outside = new OutsideController(j.getBoolean("applied"));
       motionStatus = "이전 운행 복원 · 일시정지 상태";
     } catch (Exception e) {
       engine = null;

@@ -79,4 +79,17 @@ public class FareEngineTest {
     assertEquals(a.totalWon(), b.totalWon());
     assertEquals(1100, a.totalWon());
   }
+
+  @Test
+  public void nanAndNegativeMotionIsSkippedWithoutBilling() {
+    long wall = java.time.Instant.parse("2026-11-14T03:00:00Z").toEpochMilli();
+    FareEngine e = new FareEngine(Tariff.seoul(), 0, wall, false);
+    e.advance(1_000, wall + 1_000, Double.NaN, 10, true, false);
+    e.advance(2_000, wall + 2_000, -5, 10, true, false);
+    e.advance(3_000, wall + 3_000, 5, Double.NaN, true, false);
+    e.advance(4_000, wall + 4_000, 5, -1, true, false);
+    assertEquals(0, e.snapshot().distanceMeters(), 0);
+    assertEquals(4_800, e.totalWon());
+    assertEquals(4_000, e.elapsedMillis());
+  }
 }

@@ -1,9 +1,9 @@
 package ai.pleos.smoke;
 
-import ai.pleos.smoke.core.MotionEstimator;
-import ai.pleos.smoke.data.NaviAreaSource;
-import ai.pleos.smoke.data.PleosLocationSource;
-import android.app.AlertDialog;
+import ai.pleos.smoke.core.MotionSample;
+import ai.pleos.smoke.data.GearWatcher;
+import ai.pleos.smoke.data.MotionInput;
+import ai.pleos.smoke.data.VehicleSpeedSource;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
@@ -16,10 +16,17 @@ import android.widget.*;
 import java.util.Locale;
 
 public final class MainActivity extends UiActivity
-    implements PleosLocationSource.Observer, NaviAreaSource.Observer {
+    implements VehicleSpeedSource.Observer {
   private MeterApplication session;
-  private PleosLocationSource motion;
-  private NaviAreaSource navigation;
+  private MotionInput motion;
+  private GearWatcher gear;
+  private Boolean inPark; // null: gear unknown
+  private Button historyButton, settingsButton;
+  // In-app confirmation and notices: system dialogs are sized for the full display, not this panel.
+  private TextView notice;
+  private LinearLayout confirmRow;
+  private boolean confirmingEnd;
+  private String noticeText;
   private TextView amount, counter, increment, metrics, rates, signal, speedLabel;
   private CharacterView character;
   private ProgressBar progress;
@@ -39,46 +46,54 @@ public final class MainActivity extends UiActivity
   public void onCreate(Bundle state) {
     super.onCreate(state);
     session = (MeterApplication) getApplication();
-    motion = new PleosLocationSource(this, this);
-    navigation = new NaviAreaSource(this, this);
+    motion = new MotionInput(this, this);
+    gear =
+        new GearWatcher(
+            this,
+            park -> {
+              inPark = park;
+              if (visible) refresh();
+            });
     getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
     build();
   }
 
   private void build() {
     applyPalette();
-    LinearLayout root = new LedLayout(this, ink);
+    LinearLayout root = new LinearLayout(this);
     root.setOrientation(LinearLayout.VERTICAL);
     root.setPadding(dp(24), dp(18), dp(24), dp(18));
     root.setBackgroundColor(paper);
     LinearLayout header = new LinearLayout(this);
     header.setGravity(Gravity.CENTER_VERTICAL);
-    TextView title = text("CARPOOL METER", 19);
+    TextView title = text("CARPOOL METER", 28);
     header.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-    header.addView(button("주행 내역", this::history));
-    header.addView(button("설정", () -> startActivity(new Intent(this, SettingsActivity.class))));
+    historyButton = button("주행 내역", this::history);
+    settingsButton = button("설정", () -> startActivity(new Intent(this, SettingsActivity.class)));
+    header.addView(historyButton);
+    header.addView(settingsButton);
     root.addView(header);
     rates = text("", 16);
+    size(rates, BODY_M);
     root.addView(rates);
     LinearLayout display = new LinearLayout(this);
     display.setGravity(Gravity.CENTER_VERTICAL);
+    display.setPadding(0, dp(56), 0, 0);
     LinearLayout money = new LinearLayout(this);
     money.setOrientation(LinearLayout.VERTICAL);
     amount = text("0 원", 56);
-    amount.setTypeface(android.graphics.Typeface.MONOSPACE);
     amount.setSingleLine(true);
     amount.setAutoSizeTextTypeUniformWithConfiguration(
-        20, 56, 2, android.util.TypedValue.COMPLEX_UNIT_SP);
-    money.addView(amount, new LinearLayout.LayoutParams(-1, dp(84)));
+        LABEL_M, HEADLINE_L, 2, android.util.TypedValue.COMPLEX_UNIT_PX);
+    money.addView(amount, new LinearLayout.LayoutParams(-1, dp(72)));
     increment = text("", 14);
+    size(increment, LABEL_M);
     money.addView(increment);
     counter = text("0", 25);
-    counter.setTypeface(android.graphics.Typeface.MONOSPACE);
     money.addView(counter);
     progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
     progress.setMax(10000);
     progress.setProgressTintList(android.content.res.ColorStateList.valueOf(ink));
-    money.addView(progress, new LinearLayout.LayoutParams(-1, dp(6)));
     display.addView(money, new LinearLayout.LayoutParams(0, -2, 1.6f));
     LinearLayout runner = new LinearLayout(this);
     runner.setOrientation(LinearLayout.VERTICAL);
@@ -89,22 +104,23 @@ public final class MainActivity extends UiActivity
     speedLabel.setGravity(Gravity.CENTER);
     runner.addView(speedLabel);
     display.addView(runner, new LinearLayout.LayoutParams(0, -2, 1));
-    root.addView(display);
+    root.addView(display, new LinearLayout.LayoutParams(-1, -2));
+    root.addView(progress, new LinearLayout.LayoutParams(-1, dp(6)));
     metrics = text("", 18);
     root.addView(metrics);
+    root.addView(new android.view.View(this), new LinearLayout.LayoutParams(-1, 0, 1));
     LinearLayout controls = new LinearLayout(this);
     outside =
         button(
             "시외할증 켜기",
             () -> {
-              session.outside.toggleManual();
+              session.outside.toggle();
               session.saveOutside();
               session.recordRates("메인 시외 버튼");
               session.checkpoint();
               refresh();
             });
-    controls.addView(outside, new LinearLayout.LayoutParams(0, -2, 1));
-    begin = button("시작", this::startTrip);
+    begin = button("시작", this::startTrip, true);
     controls.addView(begin, new LinearLayout.LayoutParams(0, -2, 1));
     pause =
         button(
@@ -116,23 +132,45 @@ public final class MainActivity extends UiActivity
                 motion.start();
               } else session.pause();
               refresh();
-            });
+            },
+            true);
     controls.addView(pause, new LinearLayout.LayoutParams(0, -2, 1));
     end =
         button(
             "종료",
-            () ->
-                new AlertDialog.Builder(this)
-                    .setMessage("운행을 종료할까요?")
-                    .setPositiveButton("종료", (d, w) -> finishTrip())
-                    .setNegativeButton("취소", null)
-                    .show());
+            () -> {
+              confirmingEnd = true;
+              noticeText = null;
+              refresh();
+            });
     controls.addView(end, new LinearLayout.LayoutParams(0, -2, 1));
+    notice = text("", 18);
+    root.addView(notice);
+    confirmRow = new LinearLayout(this);
+    confirmRow.addView(
+        button(
+            "종료",
+            () -> {
+              confirmingEnd = false;
+              finishTrip();
+            },
+            true),
+        new LinearLayout.LayoutParams(0, -2, 1));
+    confirmRow.addView(
+        button(
+            "취소",
+            () -> {
+              confirmingEnd = false;
+              refresh();
+            }),
+        new LinearLayout.LayoutParams(0, -2, 1));
+    root.addView(confirmRow);
     root.addView(controls);
+    root.addView(outside, new LinearLayout.LayoutParams(-1, -2));
     signal = text("", 13);
     signal.setTextColor(muted);
     root.addView(signal);
-    root.addView(button("위치 권한 / 재연결", this::permission));
+    root.addView(button("차량 속도 권한 / 재연결", this::permission));
     scroll(root);
     refresh();
   }
@@ -143,7 +181,12 @@ public final class MainActivity extends UiActivity
     session.syncSettings();
     build();
     motion.start();
-    navigation.start();
+    gear.start();
+    if (!preferences.speedPermissionAsked()
+        && checkSelfPermission(VehicleSpeedSource.PERMISSION) != PackageManager.PERMISSION_GRANTED) {
+      preferences.setSpeedPermissionAsked();
+      permission();
+    }
     handler.post(clock);
   }
 
@@ -151,7 +194,7 @@ public final class MainActivity extends UiActivity
     visible = false;
     handler.removeCallbacks(clock);
     motion.stop();
-    navigation.stop();
+    gear.stop();
     if (!isChangingConfigurations() && session.active() && !session.engine.isPaused()) {
       session.pause();
       session.motionStatus = "화면 이탈로 일시정지 · 복귀 후 다시 시작";
@@ -161,34 +204,18 @@ public final class MainActivity extends UiActivity
   }
 
   private void permission() {
-    requestPermissions(new String[] {PleosLocationSource.PERMISSION, NaviAreaSource.PERMISSION}, 7);
+    requestPermissions(new String[] {VehicleSpeedSource.PERMISSION}, 7);
   }
 
   public void onRequestPermissionsResult(int code, String[] names, int[] values) {
     super.onRequestPermissionsResult(code, names, values);
     if (!visible) return;
     motion.stop();
-    navigation.stop();
     motion.start();
-    navigation.start();
   }
 
   private void startTrip() {
     if (session.active()) return;
-    if (checkSelfPermission(PleosLocationSource.PERMISSION) != PackageManager.PERMISSION_GRANTED) {
-      permission();
-      return;
-    }
-    if (preferences.automatic()
-        && (session.area == null || SystemClock.elapsedRealtime() - session.areaReceived > 15000)) {
-      new AlertDialog.Builder(this)
-          .setMessage("자동 시외할증에 필요한 출발 행정구역을 기다리고 있습니다. 위치 권한/내비 연결을 확인하거나 설정에서 수동 모드를 선택하세요.")
-          .setPositiveButton(
-              "설정", (d, w) -> startActivity(new Intent(this, SettingsActivity.class)))
-          .setNegativeButton("확인", null)
-          .show();
-      return;
-    }
     session.begin();
     session.checkpoint();
     motion.stop();
@@ -202,17 +229,14 @@ public final class MainActivity extends UiActivity
     try (ai.pleos.smoke.data.TripStore store = new ai.pleos.smoke.data.TripStore(this)) {
       store.save(session);
       session.engine.finish();
-      session.outside.endTrip();
       session.saveOutside();
       session.clearCheckpoint();
       refresh();
       history();
     } catch (Exception e) {
       session.checkpoint();
-      new AlertDialog.Builder(this)
-          .setMessage("저장 실패 · 운행은 일시정지 상태로 유지됩니다. 다시 종료를 눌러주세요.")
-          .setPositiveButton("확인", null)
-          .show();
+      noticeText = "저장 실패 · 운행은 일시정지 상태로 유지됩니다. 다시 종료를 눌러주세요.";
+      refresh();
     }
   }
 
@@ -220,7 +244,7 @@ public final class MainActivity extends UiActivity
     startActivity(new Intent(this, HistoryActivity.class));
   }
 
-  public void onMotion(MotionEstimator.Result result) {
+  public void onMotion(MotionSample result) {
     session.speed = result.speedKmh();
     if (result.valid()) session.lastMotion = SystemClock.elapsedRealtime();
     if (session.active() && !session.engine.isPaused())
@@ -237,20 +261,6 @@ public final class MainActivity extends UiActivity
 
   public void onStatus(String message) {
     session.motionStatus = message;
-    if (visible) refresh();
-  }
-
-  public void onNaviStatus(String message) {
-    session.naviStatus = message;
-    if (visible) refresh();
-  }
-
-  public void onArea(String key, String address, long elapsed) {
-    session.area = key;
-    session.areaReceived = elapsed;
-    session.outside.onArea(key, elapsed, SystemClock.elapsedRealtime());
-    session.saveOutside();
-    session.recordRates("행정구역 변경");
     if (visible) refresh();
   }
 
@@ -287,14 +297,26 @@ public final class MainActivity extends UiActivity
             + " · 심야 "
             + tariff.nightPercent(now)
             + "% · 시외 "
-            + (session.outside.applied() ? tariff.outsidePercent + "%" : "꺼짐")
-            + " · "
-            + (session.outside.automatic() ? "자동" : "수동"));
+            + (session.outside.applied() ? tariff.outsidePercent + "%" : "꺼짐"));
     outside.setText(session.outside.applied() ? "시외할증 끄기" : "시외할증 켜기");
     begin.setVisibility(active ? android.view.View.GONE : android.view.View.VISIBLE);
     pause.setVisibility(active ? android.view.View.VISIBLE : android.view.View.GONE);
     end.setEnabled(active);
     pause.setText(active && e.isPaused() ? "다시 시작" : "일시정지");
-    signal.setText(session.motionStatus + "\n" + session.naviStatus);
+    signal.setText(session.motionStatus);
+    if (confirmingEnd) {
+      notice.setText("운행을 종료할까요?");
+      notice.setVisibility(android.view.View.VISIBLE);
+      confirmRow.setVisibility(android.view.View.VISIBLE);
+    } else {
+      confirmRow.setVisibility(android.view.View.GONE);
+      notice.setText(noticeText == null ? "" : noticeText);
+      notice.setVisibility(noticeText == null ? android.view.View.GONE : android.view.View.VISIBLE);
+    }
+    // Settings and history are blocked by the system while driving; a tap would cover the meter and
+    // pause the trip, so they are only enabled in Park (or when the gear cannot be read).
+    boolean screensAllowed = inPark == null || inPark;
+    historyButton.setEnabled(screensAllowed);
+    settingsButton.setEnabled(screensAllowed);
   }
 }
