@@ -59,3 +59,16 @@ Pleos Connect Emulator v2.1.0 arm64(Apple Silicon Mac), AVD 2560×1440 @160dpi�
 - 설정 화면의 드롭다운 등 일부 컨트롤은 아직 Pleos 스타일이 아님
 
 lint 경고에는 Pleos API 34 대상으로 인한 최신 target 권고, 한국어 문자열 현지화, 백업 XML/앱 아이콘 권고 등이 있다. 오류를 숨기는 baseline/suppression은 추가하지 않았다.
+
+
+## 1.0.1 release 패키징 확인 (2026-11-15)
+
+- 기준 소스: `v1.0.1` (`69e606a146d6e715d3fc3c8dbbcf4d356314cdb2`). 작업 브랜치 HEAD `fa9a3025a521d2a4b61f64a8b6c4fb7f8757ee32`와 파일 트리가 동일합니다.
+- JDK 17, Android SDK Platform 34, Build Tools 35.0.0으로 `assembleRelease` 성공. 삭제되어 있던 Build Tools 35.0.0은 기존 SDK 라이선스에 따라 자동 재설치했습니다.
+- `testDebugUnitTest lintRelease`: BUILD SUCCESSFUL. 테스트 52개, 실패/오류 0개. release lint 오류 0개, 경고 11개.
+- `zipalign` 후 저장소 밖의 전용 release 키로 서명했습니다. 키와 암호는 APK·저장소에 포함하지 않았습니다.
+- APK: `apk/PleosCarpoolMeter-1.0.1-release.apk`
+- 패키지 `dev.hijae.carpoolmeter`, versionName `1.0.1`, versionCode `2`, minSdk 28, targetSdk 34 확인.
+- 매니페스트에 `debuggable=true` 없음. `apksigner verify --verbose` 통과 (v3).
+- SHA-256: `e2e749902f0cfe9ae68409d182e7b785524e2d620938479404d6e4f94dba53b4`
+- 연결된 에뮬레이터/기기가 없어 **새 release APK의 설치·실행은 확인하지 않았습니다**. 위 에뮬레이터 기록은 기존 디버그 APK의 실행 기록입니다.

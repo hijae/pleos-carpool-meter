@@ -2,6 +2,32 @@
 
 Pleos Connect용 재미용 카풀 미터 앱. 결제·정산 기능은 없습니다.
 
+## 1.0.1 실행 안내
+
+| 항목 | 내용 |
+| --- | --- |
+| 앱 버전 | 1.0.1 (`versionCode 2`) |
+| 패키지 | `dev.hijae.carpoolmeter` |
+| 기준 소스 | 태그 `v1.0.1`, 커밋 `69e606a146d6e715d3fc3c8dbbcf4d356314cdb2` |
+| 서명된 release APK | [apk/PleosCarpoolMeter-1.0.1-release.apk](apk/PleosCarpoolMeter-1.0.1-release.apk) |
+| 기존 디버그 APK | [v1.0.1 Release](https://github.com/hijae/pleos-carpool-meter/releases/tag/v1.0.1)의 `carpool-meter-debug.apk` (공모전 제출용 release APK와 구분) |
+| 확인한 실행 환경 | Pleos Connect Emulator v2.1.0 arm64, Apple Silicon Mac |
+| 화면 규격 | 12.8인치, 2560×1440, 160dpi; 전체 폭 및 반쪽 패널 |
+| SDK | Pleos Vehicle 2.3.2, Android API 28 이상 (`targetSdk 34`) |
+
+서명된 APK는 위 태그와 동일한 앱 소스로 빌드했습니다. 아래 APK와 README 보완 내용은 로컬에서 준비한 상태이며, GitHub에 반영한 후 해당 링크로 내려받을 수 있습니다.
+
+```sh
+adb install -r apk/PleosCarpoolMeter-1.0.1-release.apk
+adb shell am start -W -n dev.hijae.carpoolmeter/.MainActivity
+```
+
+첫 실행에서는 차량 속도 권한을 허용합니다. 시스템 창에는 "위치 정보"로 표시될 수 있으나 GPS 입력은 사용하지 않습니다. 미허용 시 Vehicle SDK 오도미터로 대체합니다. 설정과 주행 내역은 P 기어에서 열 수 있습니다. 별도 로그인, 서버, API 키는 필요하지 않으며 Vehicle Service가 있는 Pleos 환경이 필요합니다. 에뮬레이터와 가상 콘솔 설정은 아래 "에뮬레이터"를 참고하세요.
+
+기존 디버그 APK와 release APK는 서명 키가 달라 덮어 설치할 수 없습니다. 디버그 앱이 설치되어 있으면 기존 기록을 보관한 뒤 제거하고 설치하세요. 제거하면 앱에 저장된 기록도 삭제됩니다. 1.0의 `ai.pleos.smoke`는 다른 패키지이므로 1.0.1과 별도로 설치되며 기록은 이전되지 않습니다.
+
+2026-11-15 release 빌드·서명 검증, 자동 테스트 52개, release lint(오류 0개/경고 11개)를 확인했습니다. 아래 에뮬레이터 실행 기록은 기존 디버그 APK 기준이며, 새 release APK의 에뮬레이터 실행 및 실차 동작은 아직 확인하지 않았습니다.
+
 ## 구현된 기능
 
 - **차량 값 기반 속도·거리**: `android.car`의 `PERF_VEHICLE_SPEED`(권한 `android.car.permission.CAR_SPEED`)를 시간으로 적분해 거리를 계산합니다. 권한이 없거나 속도가 오지 않으면 Pleos Vehicle SDK 오도미터(`pleos.car.permission.CAR_DRIVE`)로 대체하며, 둘 중 하나만 사용합니다. 위치(GPS) 기반 입력은 사용하지 않습니다. 첫 실행 때 속도 권한을 한 번 요청합니다.
@@ -23,7 +49,7 @@ Pleos Connect용 재미용 카풀 미터 앱. 결제·정산 기능은 없습니
 - 자동 검증: APK 빌드·서명, 계산/상태/요금표 테스트, Robolectric 화면·저장·복원 테스트, lint. 결과는 [검증 결과](docs/verification.md)
 - **Pleos Connect Emulator v2.1.0(arm64) 실행 확인**: Apple Silicon Mac, AVD 2560×1440. 앱 설치·실행, 설정·주행 내역 화면, 가상 콘솔 주행(D 기어·속도)에서 미터 표시를 확인했습니다. 속도 경로(36km/h로 약 30초 → 0.29km)와 오도미터 경로(100.000→100.250km → 0.25km)로 거리가 계산되는 것도 확인했습니다. 절차는 [실행 체크리스트](docs/pleos-runtime-checklist.md)
 - 오도미터: Vehicle SDK `PERF_ODOMETER`는 km 단위 float로 전달됩니다. 에뮬레이터에서 주입한 값이 그대로 읽혔지만 실차의 정밀도·갱신 주기는 **미검증**입니다. 속도를 쓸 수 없을 때의 대체 입력으로 쓰이며, 1초마다 읽어 거리 증가분과 10초 구간 평균 속도를 만듭니다.
-- 속도: Vehicle SDK(최신 2.3.2)에 차속 API가 없어 `android.car` `CarPropertyManager`로 `PERF_VEHICLE_SPEED`를 읽습니다. 에뮬레이터에서 허용 후 초당 약 6.6회 갱신되고 주입한 속도가 그대로 읽혔습니다. 권한은 dangerous(런타임 허용, 창 문구는 "위치 정보")입니다. 오도미터를 `android.car`로 읽는 데는 `CAR_MILEAGE`(signature|privileged)가 필요해 일반 앱은 불가능합니다. **실차 검증은 아직 없습니다.**
+- 속도: Vehicle SDK(사용 버전 2.3.2)에 차속 API가 없어 `android.car` `CarPropertyManager`로 `PERF_VEHICLE_SPEED`를 읽습니다. 에뮬레이터에서 허용 후 초당 약 6.6회 갱신되고 주입한 속도가 그대로 읽혔습니다. 권한은 dangerous(런타임 허용, 창 문구는 "위치 정보")입니다. 오도미터를 `android.car`로 읽는 데는 `CAR_MILEAGE`(signature|privileged)가 필요해 일반 앱은 불가능합니다. **실차 검증은 아직 없습니다.**
 - 실차를 쓸 수 없어 검증은 에뮬레이터까지입니다. 실차 동작과 Pleos의 앱 카테고리·지역별 주행 규제 적용 여부는 **확인하지 못했습니다**. 에뮬레이터는 실차의 모든 주행 제한을 재현하지 않을 수 있습니다.
 
 시외할증을 자동 판정하지 않으므로 내비(NaviHelper) 주소 수신은 사용하지 않고, 위치 기반 입력도 제거했습니다. 속도·오도미터의 NaN·무한대·음수 값은 건너뛰고(오도미터가 거꾸로 가면 초기화로 보고 요금에 넣지 않음) 그 외 범위·급증 같은 비정상 판정은 두지 않습니다. 수신이 끊기거나 10초 이상 공백이면 요금 누적만 보류합니다. 앱이 화면에서 벗어나면 운행을 일시정지하며, 복귀 후 직접 다시 시작해야 합니다. 재미용 계산이며 공식 택시 계량기의 정확도를 보장하지 않습니다.
@@ -66,7 +92,9 @@ Gradle 8.13 / Android Gradle Plugin 8.9.2 / minSdk 28 / targetSdk 34. 공식 Ple
 - [위치·내비 SDK 조사 기록](docs/location-investigation.md) (현재 앱은 사용하지 않음)
 - [로컬 Pleos 실행 체크리스트](docs/pleos-runtime-checklist.md)
 - [기존 화면 설계 초안](docs/previews/carpool-meter.html): 예시 데이터로 탐색한 HTML fragment. 현재 Android 구현과 구분합니다.
-- `artifacts/carpool-meter-debug.apk`: 현재 미터 앱 디버그 APK
+- [서명된 release APK](apk/PleosCarpoolMeter-1.0.1-release.apk): 1.0.1, 공모전 제출 준비용
+- [공모전 제출 절차](docs/contest-submission.md): 접수양식 작성, APK 준비, 이메일 제출 순서
+- `artifacts/carpool-meter-debug.apk`: 기존 미터 앱 디버그 APK
 - `artifacts/vehicle-sdk-smoke-debug.apk`: 초기 SDK 연동 확인용 APK, 기록용
 
 ## 공식 문서
